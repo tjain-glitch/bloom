@@ -61,29 +61,69 @@ Branch naming, commit messages and the full pull / push / PR workflow are in [CO
 
 ## Repo layout
 
-Planned. It will get updated as files actually appear.
-
 ```
 .
-├── src/          # implementation
-├── tests/        # unit + correctness tests
-├── bench/        # benchmark scripts and raw results
-├── docs/         # notes, meeting minutes, diagrams
-└── README.md
+├── src/bloom/
+│   ├── params.py      # parameter sets from Fig. 10 / Fig. 4, with validation
+│   ├── ring.py        # R_q = Z_q[X]/(X^d+1): Poly, PolyVec, PolyMat, sigma automorphisms, rot()
+│   ├── sampling.py    # CSPRNG / SHAKE-based randomness, discrete Gaussian, challenge space
+│   └── transcript.py  # Fiat-Shamir transcript
+├── tests/             # pytest suite, one file per module
+├── bench/             # benchmark scripts and results (coming)
+├── docs/              # notes and plans
+├── pyproject.toml
+└── requirements.txt
 ```
+
+The commitment scheme, the proofs, the one-out-of-many recursion and the ring signature come next. They'll sit on top of these four modules.
 
 ## Setup
 
-TODO: we haven't finalised the language or the dependencies yet. Once we do, this section will list:
+**Requirements:** Python 3.11 or newer (developed on 3.12.5), numpy, pytest. Nothing platform-specific, so Windows, macOS and Linux should all work. Developed and tested on Windows 11.
 
-- language / compiler version
-- required libraries (with versions)
-- OS and hardware we tested on
-- install commands
+```bash
+python -m venv .venv
+```
+
+Activate it (`source .venv/bin/activate` on macOS/Linux, `.venv\Scripts\activate` on Windows), then:
+
+```bash
+pip install -r requirements.txt
+```
+
+```bash
+pip install -e .
+```
+
+The editable install (`-e`) is what lets `import bloom` work from the tests and scripts.
 
 ## Running it
 
-TODO: commands for the demo, the test suite and the benchmarks, plus what the output should look like.
+Run the whole test suite:
+
+```bash
+pytest
+```
+
+Expected output is `47 passed` in a couple of seconds. To skip the statistical tests (Gaussian moments, challenge acceptance rate):
+
+```bash
+pytest -m "not slow"
+```
+
+The demo and benchmarks don't exist yet.
+
+### What the current tests check
+
+- **ring:** multiplication matches a naive textbook implementation; `X^d = -1`; ring axioms; `σ_i` is an automorphism; Lemma 2.2 (constant coeff of `σ_{-1}(u)ᵀv` equals `⟨u, v⟩`); `rot(A)·s = A·s`; byte encoding round-trips and rejects bad input
+- **sampling:** XOF determinism; signs are ±1; Gaussian mean and std dev; challenges are `σ_{-1}`-invariant with `‖c‖∞ ≤ κ`; `‖c·r‖ ≤ η‖r‖`
+- **transcript:** same inputs give same challenges; any change in data, order, label, type or framing changes them
+- **params:** ring sizes match Fig. 10; key sizes match App. C.2 (128 B public, 96 B secret); invalid parameters are rejected
+
+### Early results
+
+- Challenge space (Sec. 2.5): **99.15%** of 2000 random candidates pass the η = 140 norm check. The paper says "at least 99%".
+- Key sizes: 128 B public key and 96 B secret key, matching App. C.2.
 
 ## Reproducing the paper's results
 
@@ -93,7 +133,11 @@ TODO: the exact commands to regenerate our signature-size and timing tables, and
 
 We'll keep this updated. Anything the paper leaves out where we had to make our own call (parameter choices, how a hash is instantiated, sampling details, etc.) goes here with a short reason.
 
-- *(none yet)*
+- **𝔩 = 8 instead of 16.** Section 4 and App. C.2 state `(d, 𝔡, 𝔩) = (64, 8, 16)`, but also require `d = 𝔩·𝔡`, and 16·8 = 128 ≠ 64. The packing of the 𝔩 vectors `w_i ∈ Z_q^𝔡` into one degree-64 polynomial only works when `𝔩·𝔡 ≤ d`, so we use 𝔩 = 8. Soundness per recursion step is then about `q1^-8 ≈ 2^-128`, which still hits the paper's 128-bit target. `tests/test_params.py::test_papers_literal_ell_is_inconsistent` documents this.
+- **Discrete Gaussian sampler.** The paper doesn't specify one. We use plain rejection sampling from a bounded uniform (tail cut at 14σ, so the cut-off mass is under 2^-140). It's simple to verify, but slow and not constant-time.
+- **Fiat-Shamir.** The paper doesn't specify the hashing. We use SHAKE-256 with length-prefixed, type-tagged framing for every absorbed value. Each challenge is fed back into the state, so later challenges depend on earlier ones.
+- **Public matrices** are expanded from a seed with SHAKE-256, one label per matrix (`A`, `A1`, `A2`, `B`, ...).
+- **Randomness for secrets** comes from `secrets.SystemRandom` (the OS CSPRNG). Seeded `random.Random` is only used in tests.
 
 ## Third-party code, libraries and AI use
 
@@ -103,7 +147,17 @@ The assignment requires us to be upfront about anything we didn't write ourselve
 - any code adapted from elsewhere (with a link and licence)
 - where AI tools were used and what we changed afterwards
 
-- *(nothing yet)*
+Libraries:
+
+- **numpy**: coefficient arrays and convolution for polynomial multiplication. We considered a pure Python implementation (slower, no gain) and an NTT library (none we found handles q ≈ 2^32 split as q1·q2 with these primes).
+- **pytest**: test runner.
+- **Python standard library**: `hashlib` (SHAKE-256 / SHA3-256 for Fiat-Shamir and seed expansion), `secrets` (CSPRNG).
+
+No code from the paper's authors is used, since they didn't release any. No code is adapted from other repositories.
+
+AI assistance:
+
+- The initial version of the foundation layer (`params.py`, `ring.py`, `sampling.py`, `transcript.py` and their tests) was drafted with AI assistance. The team then reviewed, tested and is responsible for it. Any later changes and fixes will be noted here.
 
 ## Team
 
