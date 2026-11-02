@@ -1,0 +1,49 @@
+k,mode,component,bytes
+2,rej1,t_A,4096
+2,rej1,t_1..t_k,512
+2,rej1,t_y3,1024
+2,rej1,t_g,2304
+2,rej1,h,2304
+2,rej1,t (quadratic garbage),256
+2,rej1,c,40
+2,rej1,z3,513
+2,rej1,z1,2401
+2,rej1,z2,8449
+2,rej1,total (encoded),21903
+2,rej1,z entropy estimate (z1+z2+z3),10598
+2,bimodal,t_A,4096
+2,bimodal,t_1..t_k,512
+2,bimodal,t_y3,1024
+2,bimodal,t_g,2304
+2,bimodal,h,2304
+2,bimodal,t (quadratic garbage),256
+2,bimodal,c,40
+2,bimodal,z3,513
+2,bimodal,z1,1921
+2,bimodal,z2,6529
+2,bimodal,total (encoded),19503
+2,bimodal,z entropy estimate (z1+z2+z3),8049
+4,rej1,t_A,4096
+4,rej1,t_1..t_k,1024
+4,rej1,t_y3,1024
+4,rej1,t_g,2304
+4,rej1,h,2304
+4,rej1,t (quadratic garbage),256
+4,rej1,c,40
+4,rej1,z3,513
+4,rej1,z1,2721
+4,rej1,z2,8801
+4,rej1,total (encoded),23087
+4,rej1,z entropy estimate (z1+z2+z3),11244
+4,bimodal,t_A,4096
+4,bimodal,t_1..t_k,1024
+4,bimodal,t_y3,1024
+4,bimodal,t_g,2304
+4,bimodal,h,2304
+4,bimodal,t (quadratic garbage),256
+4,bimodal,c,40
+4,bimodal,z3,513
+4,bimodal,z1,2041
+4,bimodal,z2,6801
+4,bimodal,total (encoded),20407
+4,bimodal,z entropy estimate (z1+z2+z3),8532

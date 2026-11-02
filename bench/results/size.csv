@@ -1,0 +1,5 @@
+k,N,mode,runs,measured_bytes_mean,measured_bytes_min,measured_bytes_max,measured_KB,our_entropy_estimate_KB,paper_fig10_estimate_KB,pk_bytes,sk_bytes
+2,4096,rej1,3,21954,21903,22023,22.0,21.1,14.1,128,96
+2,4096,bimodal,3,19463,19383,19503,19.5,18.6,14.1,128,96
+4,262144,rej1,3,23154,23087,23255,23.2,22.3,15.1,128,96
+4,262144,bimodal,3,20418,20407,20439,20.4,19.6,15.1,128,96
