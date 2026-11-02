@@ -191,3 +191,159 @@ def challenge_poly(
             c[d - i] = -c[i]
         if challenge_norm_ok(c, eta, chal_pow):
             return Poly(ring, c)
+
+
+# --- vectorised helpers (added for the proof layer) ----------------------------------------
+#
+# The functions above draw one integer at a time, which is easy to read but slow for the
+# thousands of coefficients a signature needs. The array versions below produce the same
+# distributions from bulk random bytes. Secret values (masks, commitment randomness) still
+# come from the OS CSPRNG; public values come from SHAKE-256 so the verifier can rebuild them.
+
+
+def random_bytes(n: int, rng: random.Random | None = None) -> bytes:
+    """n random bytes: OS CSPRNG by default, or drawn from `rng` (deterministic tests/XOF)."""
+    if n <= 0:
+        return b""
+    if rng is None:
+        return secrets.token_bytes(n)
+    return rng.getrandbits(8 * n).to_bytes(n, "little")
+
+
+def shake_bytes(seed: bytes, label: str, n: int) -> bytes:
+    """n bytes of SHAKE-256(label || seed), used to expand public values from a seed."""
+    return hashlib.shake_256(b"bloom-array|" + label.encode() + b"|" + seed).digest(n)
+
+
+def _uniform_from_bytes(next_bytes, count: int, modulus: int) -> np.ndarray:
+    """Uniform ints in [0, modulus) by rejection on 32-bit words (no modulo bias)."""
+    if not 2 <= modulus <= 1 << 32:
+        raise ValueError("modulus must be in [2, 2^32]")
+    limit = ((1 << 32) // modulus) * modulus
+    out = np.empty(0, dtype=np.int64)
+    while out.size < count:
+        need = count - out.size
+        words = np.frombuffer(next_bytes(4 * (need + need // 8 + 8)), dtype="<u4").astype(np.int64)
+        out = np.concatenate([out, words[words < limit] % modulus])
+    return out[:count]
+
+
+def uniform_array(shape: tuple[int, ...], modulus: int, rng: random.Random | None = None) -> np.ndarray:
+    """Uniform int64 array in [0, modulus) with the given shape (secret randomness)."""
+    count = int(np.prod(shape))
+    return _uniform_from_bytes(lambda n: random_bytes(n, rng), count, modulus).reshape(shape)
+
+
+def expand_array(seed: bytes, label: str, shape: tuple[int, ...], modulus: int) -> np.ndarray:
+    """Deterministic uniform array from a public seed (fast version of expand_mat).
+
+    Each call with a fresh counter block keeps the stream independent of earlier draws.
+    """
+    counter = [0]
+
+    def next_bytes(n: int) -> bytes:
+        counter[0] += 1
+        return shake_bytes(seed + counter[0].to_bytes(4, "little"), label, n)
+
+    count = int(np.prod(shape))
+    return _uniform_from_bytes(next_bytes, count, modulus).reshape(shape)
+
+
+def ternary_array(shape: tuple[int, ...], rng: random.Random | None = None) -> np.ndarray:
+    """Coefficients uniform in {-1, 0, 1}: the commitment randomness s2 (Section 2.6)."""
+    return uniform_array(shape, 3, rng) - 1
+
+
+def sign_array(shape: tuple[int, ...], rng: random.Random | None = None) -> np.ndarray:
+    """Coefficients uniform in {-1, 1}: secret keys in App. C.2."""
+    count = int(np.prod(shape))
+    bits = np.unpackbits(np.frombuffer(random_bytes((count + 7) // 8, rng), dtype=np.uint8))
+    return (2 * bits[:count].astype(np.int64) - 1).reshape(shape)
+
+
+def binomial_array(shape: tuple[int, ...], seed: bytes, label: str) -> np.ndarray:
+    """Public matrix with entries in {-1, 0, 1} w.p. 1/4, 1/2, 1/4 (difference of two bits).
+
+    This is the Bin_1 distribution LNP22 uses for its Johnson-Lindenstrauss projection.
+    """
+    count = int(np.prod(shape))
+    bits = np.unpackbits(np.frombuffer(shake_bytes(seed, label, (2 * count + 7) // 8), dtype=np.uint8))
+    bits = bits[: 2 * count].astype(np.int64).reshape(count, 2)
+    return (bits[:, 0] - bits[:, 1]).reshape(shape)
+
+
+def gaussian_array(shape: tuple[int, ...], s: float, rng: random.Random | None = None) -> np.ndarray:
+    """Discrete Gaussian D_s over Z (Definition 2.4), vectorised version of gaussian_int.
+
+    Same method: candidate x uniform in [-B, B] with B = ceil(14 s), accept with probability
+    exp(-x^2 / (2 s^2)). Not constant-time (see README limitations).
+    """
+    if not s > 0:
+        raise ValueError(f"standard deviation must be positive, got {s}")
+    count = int(np.prod(shape))
+    bound = math.ceil(GAUSSIAN_TAIL * s)
+    width = 2 * bound + 1
+    if width > 1 << 32:
+        raise ValueError("standard deviation too large for the 32-bit sampler")
+    out = np.empty(0, dtype=np.int64)
+    two_s2 = 2.0 * s * s
+    while out.size < count:
+        n = 2 * (count - out.size) * GAUSSIAN_TAIL // 2 + 64
+        x = uniform_array((n,), width, rng) - bound
+        u = np.frombuffer(random_bytes(8 * n, rng), dtype="<u8") >> np.uint64(11)
+        u = u.astype(np.float64) / float(1 << 53)
+        out = np.concatenate([out, x[u < np.exp(-(x.astype(np.float64) ** 2) / two_s2)]])
+    return out[:count].reshape(shape)
+
+
+# --- rejection sampling (Lemma 2.8, Fig. 3) ------------------------------------------------
+
+
+def rej1_M(gamma: float) -> float:
+    """Repetition rate of Rej1 for s = gamma * T (Lemma 2.8, part 1)."""
+    return math.exp(14.0 / gamma + 1.0 / (2.0 * gamma * gamma))
+
+
+def bimodal_M(gamma: float) -> float:
+    """Repetition rate of the bimodal test Rej2 for s = gamma * T (Lemma 2.8, part 2)."""
+    return math.exp(1.0 / (2.0 * gamma * gamma))
+
+
+def _inner_and_norm(z: np.ndarray, v: np.ndarray) -> tuple[float, float]:
+    zf = np.asarray(z, dtype=np.float64).ravel()
+    vf = np.asarray(v, dtype=np.float64).ravel()
+    return float(np.dot(zf, vf)), float(np.dot(vf, vf))
+
+
+def _log_uniform(rng: random.Random | None) -> float:
+    u = _rng(rng).random()
+    return math.log(u) if u > 0 else -math.inf
+
+
+def rej1(z: np.ndarray, v: np.ndarray, s: float, M: float, rng: random.Random | None = None) -> bool:
+    """Rej1 from Fig. 3 (left). Returns True to REJECT.
+
+    Reject if u > (1/M) * exp((-2<z,v> + ||v||^2) / (2 s^2)), computed in log space so the
+    exponential never overflows. z and v are centred integer vectors.
+    """
+    zv, vv = _inner_and_norm(z, v)
+    log_threshold = (-2.0 * zv + vv) / (2.0 * s * s) - math.log(M)
+    return _log_uniform(rng) > log_threshold
+
+
+def _log_cosh(x: float) -> float:
+    ax = abs(x)
+    return ax + math.log1p(math.exp(-2.0 * ax)) - math.log(2.0)
+
+
+def rej_bimodal(z: np.ndarray, v: np.ndarray, s: float, M: float, rng: random.Random | None = None) -> bool:
+    """Rej2, the bimodal test from Fig. 3 (right). Returns True to REJECT.
+
+    Reject if u > 1 / (M * exp(-||v||^2 / (2 s^2)) * cosh(<z,v> / s^2)). (The figure prints
+    sigma^2 inside the cosh; it is the same s^2 as elsewhere, as in DDLL13.)
+    Used with z = y + b*v for a random sign b (Sec. 3.2), or z = y + v for the commitment
+    randomness, where Lemma 3.1 shows the sign is not needed (Sec. 3.1).
+    """
+    zv, vv = _inner_and_norm(z, v)
+    log_threshold = -math.log(M) + vv / (2.0 * s * s) - _log_cosh(zv / (s * s))
+    return _log_uniform(rng) > log_threshold

@@ -111,3 +111,102 @@ def test_expand_mat_deterministic_and_label_separated():
     assert a == expand_mat(small, b"seed" * 8, "A1", 2, 3)
     assert a != expand_mat(small, b"seed" * 8, "A2", 2, 3)
     assert a != expand_mat(small, b"other" * 8, "A1", 2, 3)
+
+
+# --- vectorised samplers and rejection sampling (used by the proof layer) ------------------
+
+from bloom.sampling import (  # noqa: E402
+    bimodal_M,
+    binomial_array,
+    expand_array,
+    gaussian_array,
+    rej1,
+    rej1_M,
+    rej_bimodal,
+    sign_array,
+    ternary_array,
+    uniform_array,
+)
+
+
+def test_array_samplers_ranges():
+    rng = random.Random(1)
+    u = uniform_array((1000,), P.q, rng)
+    assert u.min() >= 0 and u.max() < P.q
+    assert set(np.unique(ternary_array((1000,), rng))) == {-1, 0, 1}
+    assert set(np.unique(sign_array((1000,), rng))) == {-1, 1}
+    assert uniform_array((3, 4), 7, rng).shape == (3, 4)
+
+
+def test_uniform_array_is_unbiased():
+    counts = np.bincount(uniform_array((60000,), 6, random.Random(2)), minlength=6)
+    assert np.all(np.abs(counts / 60000 - 1 / 6) < 0.01)
+
+
+def test_expand_array_deterministic_and_label_separated():
+    a = expand_array(b"s" * 32, "x", (5, 64), P.q)
+    assert np.array_equal(a, expand_array(b"s" * 32, "x", (5, 64), P.q))
+    assert not np.array_equal(a, expand_array(b"s" * 32, "y", (5, 64), P.q))
+    assert not np.array_equal(a, expand_array(b"t" * 32, "x", (5, 64), P.q))
+
+
+def test_binomial_array_is_deterministic():
+    assert np.array_equal(binomial_array((4, 9), b"k" * 32, "jl"), binomial_array((4, 9), b"k" * 32, "jl"))
+
+
+@pytest.mark.parametrize("s", [3.0, 1000.0, 150000.0])
+def test_gaussian_array_moments(s):
+    x = gaussian_array((20000,), s, random.Random(int(s)))
+    assert abs(x.mean()) < 4 * s / math.sqrt(20000)
+    assert abs(x.std() / s - 1) < 0.03
+
+
+@pytest.mark.slow
+@pytest.mark.parametrize("mode", ["rej1", "bimodal"])
+def test_rejection_acceptance_rate_is_about_one_over_M(mode):
+    """Lemma 2.8: with ||v|| at the bound T and s = gamma T, acceptance is close to 1/M.
+
+    For Rej1 the 1/M is a lower bound (M carries a tail-cut slack), so we only check
+    1/M <= rate; for the bimodal test the rate is 1/M exactly in expectation.
+    """
+    rng = random.Random(5)
+    n, trials = 256, 1500
+    v = np.zeros(n, dtype=np.int64)
+    v[:16] = 25                                  # ||v|| = 100
+    T = float(np.linalg.norm(v))
+    if mode == "rej1":
+        gamma = 12.0
+        s, M = gamma * T, rej1_M(gamma)
+        accepted = sum(not rej1(gaussian_array((n,), s, rng) + v, v, s, M, rng) for _ in range(trials))
+        assert accepted / trials >= 1 / M - 0.04
+    else:
+        gamma = 1.0
+        s, M = gamma * T, bimodal_M(gamma)
+        accepted = 0
+        for _ in range(trials):
+            b = random_sign(rng)
+            accepted += not rej_bimodal(gaussian_array((n,), s, rng) + b * v, v, s, M, rng)
+        assert abs(accepted / trials - 1 / M) < 0.04
+
+
+def test_bimodal_output_does_not_depend_on_v():
+    """After bimodal rejection z = y + b v is distributed as D_s, independent of v ([DDLL13]).
+
+    We look at t = <z, v> / (s ||v||). For z ~ D_s, t is ~N(0, 1), variance 1. Without the
+    rejection step, t = b ||v|| / s + N(0, 1) has variance 1 + ||v||^2 / s^2 = 2 here.
+    """
+    rng = random.Random(6)
+    n = 256
+    v = np.zeros(n, dtype=np.int64)
+    v[:16] = 25
+    s = float(np.linalg.norm(v))                 # gamma = 1
+    M = bimodal_M(1.0)
+    before, after = [], []
+    for _ in range(1500):
+        z = gaussian_array((n,), s, rng) + random_sign(rng) * v
+        t = float(z @ v) / (s * s)
+        before.append(t)
+        if not rej_bimodal(z, v, s, M, rng):
+            after.append(t)
+    assert abs(np.var(before) - 2.0) < 0.3
+    assert abs(np.var(after) - 1.0) < 0.2

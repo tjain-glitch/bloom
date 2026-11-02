@@ -32,7 +32,8 @@ def naive_mul(a, b, d, q):
 def test_mul_matches_naive(rng):
     for _ in range(20):
         a, b = uniform_poly(R, rng), uniform_poly(R, rng)
-        assert list((a * b).c) == naive_mul(list(a.c), list(b.c), R.d, Q)
+        # int() each coefficient: Poly stores int64 now, and the naive reference needs Python ints
+        assert list((a * b).c) == naive_mul([int(x) for x in a.c], [int(x) for x in b.c], R.d, Q)
 
 
 def test_x_to_the_d_is_minus_one():
@@ -67,7 +68,7 @@ def test_lemma_2_2_inner_product(rng):
     # The constant coefficient of sigma_{-1}(u)^T v equals <u, v> (coefficient vectors).
     u, v = uniform_vec(R, 5, rng), uniform_vec(R, 5, rng)
     lhs = u.conj().dot(v).const
-    rhs = int(np.dot(u.coeffs(), v.coeffs())) % Q
+    rhs = int(np.dot(u.coeffs().astype(object), v.coeffs().astype(object))) % Q
     assert lhs == rhs
 
 
