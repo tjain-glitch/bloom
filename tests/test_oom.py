@@ -98,6 +98,52 @@ def test_malformed_proof_rejected_not_crashing(toy_rej1, proved):
     assert not verify(toy_rej1, "not a proof").ok
 
 
+@pytest.mark.parametrize("field", ["tA", "t_w"])
+@pytest.mark.parametrize("change, reason", [
+    pytest.param(lambda a: None, "NumPy array", id="none"),
+    pytest.param(lambda a: a.tolist(), "NumPy array", id="list"),
+    pytest.param(lambda a: a[:, :-1], "shape", id="wrong-shape"),
+    pytest.param(lambda a: a[:0], "shape", id="empty"),
+    pytest.param(lambda a: a.astype(float), "integer", id="float"),
+    pytest.param(lambda a: a.astype(float) + 0.5, "integer", id="fractional"),
+    pytest.param(lambda a: a.astype(object), "integer", id="object"),
+    pytest.param(lambda a: a.astype(bool), "integer", id="bool"),
+    pytest.param(lambda a: a.astype(str), "integer", id="string"),
+])
+def test_malformed_commitment_fields_are_rejected(toy_rej1, proved, field, change, reason):
+    """Reject invalid representations before array operations or lossy integer conversion."""
+    pf = proved[0]
+    bad = replace(pf, **{field: change(getattr(pf, field))})
+    res = verify(toy_rej1, bad)
+    assert not res.ok
+    assert "malformed proof" in res.reason and reason in res.reason
+
+
+@pytest.mark.parametrize("field", ["tA", "t_w"])
+@pytest.mark.parametrize("boundary", ["negative", "modulus"])
+def test_commitment_range_boundaries_are_rejected(toy_rej1, proved, field, boundary):
+    pf = proved[0]
+    arr = getattr(pf, field).copy()
+    arr.flat[0] = -1 if boundary == "negative" else toy_rej1.pp.q
+    res = verify(toy_rej1, replace(pf, **{field: arr}))
+    assert not res.ok and "not reduced mod q" in res.reason
+
+
+@pytest.mark.parametrize("fixture", ["toy_rej1", "toy_bimodal"])
+def test_uint32_commitments_still_verify(fixture, request):
+    """The verifier accepts valid integer arrays, not just the prover's int64 dtype."""
+    inst = request.getfixturevalue(fixture)
+    pf = oom.prove(inst.pp, inst.ck, inst.stmt, inst.wit, inst.transcript(), random.Random(5))
+    pf = replace(pf, tA=pf.tA.astype(np.uint32), t_w=pf.t_w.astype(np.uint32))
+    assert verify(inst, pf).ok
+
+
+@pytest.mark.parametrize("bad_base", [None, "not a base proof"])
+def test_invalid_base_case_object_is_rejected(toy_rej1, proved, bad_base):
+    res = verify(toy_rej1, replace(proved[0], base=bad_base))
+    assert not res.ok and "base-case proof" in res.reason
+
+
 def test_modified_statement_rejected(toy_rej1, proved):
     """Change one coefficient of one ring member (not the signer) and verify the SAME proof."""
     other = (toy_rej1.index + 7) % toy_rej1.ps.ring_size

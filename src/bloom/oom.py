@@ -206,11 +206,17 @@ def verify(pp: ProofParams, ck: abdlop.CommitmentKey, stmt: Statement, proof: Oo
         stmt.validate(pp)
         if not isinstance(proof, OomProof):
             return VerifyResult.reject("not a proof object")
-        if proof.tA.shape != (pp.n_com, pp.d):
-            return VerifyResult.reject("malformed proof: t_A has the wrong shape")
-        for arr in (proof.tA, proof.t_w):
+        # Validate before array operations or transcript encoding can coerce the values.
+        for name, shape in (("tA", (pp.n_com, pp.d)), ("t_w", (pp.k, pp.d))):
+            arr = getattr(proof, name)
+            if not isinstance(arr, np.ndarray):
+                return VerifyResult.reject(f"malformed proof: {name} must be a NumPy array")
+            if arr.shape != shape:
+                return VerifyResult.reject(f"malformed proof: {name} should have shape {shape}")
+            if not np.issubdtype(arr.dtype, np.integer):
+                return VerifyResult.reject(f"malformed proof: {name} must have an integer dtype")
             if arr.min() < 0 or arr.max() >= pp.q:
-                return VerifyResult.reject("malformed proof: commitment not reduced mod q")
+                return VerifyResult.reject(f"malformed proof: {name} not reduced mod q")
         st = reduce_verify(pp, stmt, tr, proof)
     except ValueError as exc:
         return VerifyResult.reject(f"malformed input: {exc}")

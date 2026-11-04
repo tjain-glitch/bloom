@@ -538,6 +538,8 @@ def _norm(arr: np.ndarray) -> float:
 def verify(pp: ProofParams, ck: abdlop.CommitmentKey, tr: OomTranscript, st: BaseStatement,
            pf: BaseCaseProof) -> VerifyResult:
     """Verifier of Pi_k. Never sees the witness; returns the first failing check."""
+    if not isinstance(pf, BaseCaseProof):
+        return VerifyResult.reject("malformed proof: expected a base-case proof object")
     d, q = pp.d, pp.q
     lay = Layout(pp)
     problem = _check_shapes(pp, pf)

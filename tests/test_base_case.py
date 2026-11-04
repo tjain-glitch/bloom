@@ -216,6 +216,13 @@ def test_lying_about_h_is_caught_by_the_challenge(toy_rej1):
     assert not res2.ok and "Fiat-Shamir" in res2.reason
 
 
+@pytest.mark.parametrize("bad_proof", [None, "not a base proof"])
+def test_invalid_proof_object_is_rejected(toy_rej1, bad_proof):
+    tr, st, _ = reduced(toy_rej1)
+    res = base_case.verify(toy_rej1.pp, toy_rej1.ck, tr, st, bad_proof)
+    assert not res.ok and "base-case proof" in res.reason
+
+
 @pytest.mark.parametrize("field, change, reason", [
     ("z1", lambda a: _bump(a), "Fiat-Shamir"),
     ("z2", lambda a: _bump(a), "Fiat-Shamir"),

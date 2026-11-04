@@ -76,7 +76,7 @@ The foundation layer was developed on Windows 11 (Python 3.12.5); the proof laye
 ## Running it
 
 ```bash
-pytest                    # 204 tests, about 20 s
+pytest                    # 232 tests; runtime depends on the machine
 pytest -m "not slow"      # skips the statistical and full-size tests
 python demo.py            # Fig. 10 parameters, 4096-key ring, about 2 s
 ```
@@ -89,8 +89,28 @@ python demo.py            # Fig. 10 parameters, 4096-key ring, about 2 s
 - **Recursion:** the tensor decomposition, the fold identity, and the Lemma 4.1 linking checks (including that a sign flip is harmless only for even `k`, Lemma C.1)
 - **Base case:** honest proofs accepted; for each condition of `R_k`, a prover with a witness that breaks it is rejected; the relation encoding agrees with an independent opening checker; any tampered proof field is rejected
 - **Ring signature:** sign/verify for any ring member, bad inputs rejected without crashing, encoding round-trips; the same signature fails after changing a key, the ring order, the message or the public parameters (`test_statement_binding.py`)
+- **Verifier input validation:** 28 additional regression cases cover malformed commitment arrays, range boundaries, invalid base-case proof objects, and valid `uint32` commitments in both rejection modes (`test_oom.py`, `test_base_case.py`).
 
 These are functional tests. They show the code follows the paper's algorithms and catches the cheating cases we wrote; they are not a security proof. Security rests on MSIS, MLWE and the paper's Extended-MLWE assumption.
+
+### Verifier input validation
+
+Before recursive processing and transcript encoding, `oom.verify()` checks the commitment fields `tA` and `t_w` in this order:
+
+1. The field is a NumPy array.
+2. Its shape is `(pp.n_com, pp.d)` for `tA`, or `(pp.k, pp.d)` for `t_w`.
+3. Its dtype is an integer type; floating-point, object, Boolean and string arrays are rejected.
+4. Every coefficient is in `[0, q)`.
+
+Inputs that fail these checks return a `VerifyResult` with `ok=False` and a rejection reason. This prevents array-operation errors on `None` or lists and prevents floating-point commitment values from being silently truncated to integers. The range check requires coefficients to already be reduced modulo `q`.
+
+At the base-case entry point, `base_case.verify()` also rejects `None` or an object that is not a `BaseCaseProof`, covering both direct calls and calls through the OOM verifier.
+
+Run the OOM and base-case tests, including these regression cases, with:
+
+```bash
+pytest tests/test_oom.py tests/test_base_case.py
+```
 
 ## Results
 
