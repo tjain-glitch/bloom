@@ -321,7 +321,7 @@ def _log_uniform(rng: random.Random | None) -> float:
 
 
 def rej1(z: np.ndarray, v: np.ndarray, s: float, M: float, rng: random.Random | None = None) -> bool:
-    """Rej1 from Fig. 3 (left). Returns True to REJECT.
+    """Rej1 from Fig. 3 (left). Returns True if we should reject.
 
     Reject if u > (1/M) * exp((-2<z,v> + ||v||^2) / (2 s^2)), computed in log space so the
     exponential never overflows. z and v are centred integer vectors.
@@ -337,7 +337,7 @@ def _log_cosh(x: float) -> float:
 
 
 def rej_bimodal(z: np.ndarray, v: np.ndarray, s: float, M: float, rng: random.Random | None = None) -> bool:
-    """Rej2, the bimodal test from Fig. 3 (right). Returns True to REJECT.
+    """Rej2, the bimodal test from Fig. 3 (right). Returns True if we should reject.
 
     Reject if u > 1 / (M * exp(-||v||^2 / (2 s^2)) * cosh(<z,v> / s^2)). (The figure prints
     sigma^2 inside the cosh; it is the same s^2 as elsewhere, as in DDLL13.)

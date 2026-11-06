@@ -1,4 +1,4 @@
-"""The SAME signature must fail after ANY change to the public statement.
+"""The same signature has to fail after any change to the public statement.
 
 This is the property the demo shows live (part 2), and the bug the team found earlier
 (a transcript that skipped the ring accepted modified statements). Each case keeps the

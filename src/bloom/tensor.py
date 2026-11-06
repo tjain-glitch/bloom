@@ -9,7 +9,7 @@ and the one-hot vector e_i of length N factors as the Kronecker product
 
     e_i = v_1 (x) v_2 (x) ... (x) v_k (x) v_{k+1},   v_j = e_{i_j} in {0,1}^base,  v_{k+1} = e_{i_{k+1}} in {0,1}^d.
 
-v_1 is the MOST significant digit: (v_1 (x) rest)[r * len(rest) + t] = v_1[r] * rest[t].
+v_1 is the most significant digit: (v_1 (x) rest)[r * len(rest) + t] = v_1[r] * rest[t].
 This matches how fold.py cuts T into column blocks T_{0,1} | ... | T_{0,base}.
 
 In the ring signature (App. C.1) the selectors are signed: every v_j may be multiplied by the

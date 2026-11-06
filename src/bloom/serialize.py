@@ -1,4 +1,4 @@
-"""Bit-packed encoding of signatures, to measure ACTUAL sizes (p. 29, Fig. 10).
+"""Bit-packed encoding of signatures, to measure actual sizes (p. 29, Fig. 10).
 
 Jie's email asks us to keep measured sizes separate from the paper's estimates. This module
 produces the measured number: len(encode(signature)). bench/size.py prints it next to Fig. 10.
@@ -129,7 +129,7 @@ def size_breakdown(pf: OomProof, pp: ProofParams) -> dict[str, float]:
     """Bytes per component as encoded, plus an entropy estimate for the Gaussian parts.
 
     The estimate uses log2(sqrt(2 pi e) * s) bits per coefficient for a discrete Gaussian of
-    width s, which is how LNP22 Sec. 6.1 counts the z's; it is NOT what we transmit.
+    width s, which is how LNP22 Sec. 6.1 counts the z's; it's not what we actually send.
     """
     d = pp.d
     b = pf.base

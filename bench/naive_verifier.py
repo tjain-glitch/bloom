@@ -7,16 +7,16 @@ Jie's email: an opening-based checker is acceptable only as a debugging tool; ze
 is what makes it BLOOM. This script puts three verifiers side by side on the same inputs:
 
     A  openings only        OpeningChecker(openings_only=True): do t_A, t_1..t_k open to the
-                            claimed witness? Needs the WITNESS (so it reveals the signer).
+                            claimed witness? Needs the witness (so it gives away the signer).
     B  openings + R_k       OpeningChecker: also checks every row of R_k in the clear.
-                            Needs the WITNESS.
+                            Needs the witness.
     C  Pi_k (ours)          base_case.verify: sees only the proof. Zero-knowledge.
 
 Inputs: the honest witness, and cheating witnesses that each break one row of R_k (the
 cheater commits to the bad witness, so its openings are consistent). For C the cheater runs
 the real prover code on the bad witness (with the honest-witness self-check switched off).
 
-Reported: how many of `trials` each verifier ACCEPTS, plus mean time per check. These are
+Reported: how many of `trials` each verifier accepts, plus mean time per check. These are
 functional results: they show the checks are wired up, not a soundness proof.
 
 Writes bench/results/naive_verifier.csv.

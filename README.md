@@ -1,11 +1,13 @@
 # BLOOM: lattice one-out-of-many proofs (FIT5163 group project)
 
-This is our group's repo for the FIT5163 programming assignment (Monash, Semester 2 2026). We were assigned the paper
+This is our group's code for the FIT5163 programming assignment (Monash, Semester 2 2026). We were assigned the paper
 
 > **BLOOM: Bimodal Lattice One-Out-of-Many Proofs and Applications**
 > Vadim Lyubashevsky (IBM Research Europe) and Ngoc Khanh Nguyen (EPFL)
 
-We implement the paper's lattice ring signature (App. C) end to end: the recursive one-out-of-many proof of Section 4 (Figs. 9 and 8), a zero-knowledge base case built from the LNP22 toolbox, and both standard and bimodal rejection sampling. We then compare measured sizes with the paper's estimates.
+We implement the paper's lattice ring signature (App. C) end to end: the recursive one-out-of-many proof of Section 4 (Figs. 9 and 8), a zero-knowledge base case built from the LNP22 toolbox, and both standard and bimodal rejection sampling. We then compare measured signature sizes with the paper's estimates.
+
+**Contents:** [the paper](#what-the-paper-is-about-short-version) · [scope](#scope) · [requirements](#requirements) · [installation](#installation) · [configuration](#configuration) · [running the demo](#running-the-demo) · [tests](#running-the-tests) · [reproducing the results](#reproducing-the-results) · [results](#results) · [repo layout](#repo-layout) · [deviations](#deviations-from-the-paper) · [security notes](#security-notes-and-limitations) · [provenance](#third-party-code-libraries-and-ai-use) · [team](#team)
 
 ## What the paper is about (short version)
 
@@ -27,10 +29,155 @@ The main ideas:
 - The base case `Π_k` as a genuine zero-knowledge proof (LNP22: JL approximate shortness, `Z_q` to `R_q` lift, Fig. 7 quadratic proof)
 - Ring signature KeyGen / Sign / Verify (App. C.2), signature encoding, demo and benchmarks
 
-**Not implemented:**
-- The group signature (App. E) and integer proofs (App. D)
-- `k = 0` (a direct proof without recursion). `k = 6` (N = 2^24) is supported but not run, since the ring alone needs about 8.6 GB.
-- Constant-time or side-channel hardened code. This is a research prototype.
+**Not implemented, and why:**
+- **The group signature (App. E) and integer proofs (App. D).** They are further applications built on the same one-out-of-many proof. The ring signature is the paper's headline application and the one Fig. 10 gives sizes for, so it is what lets us check the paper's main claims (logarithmic size, small keys, the bimodal saving). Adding App. E would mean a second commitment layer and verifiable encryption, which did not fit in the teaching period.
+- **`k = 0`** (a direct proof without recursion, N = 64). It needs a separate code path without folds; the recursion is the paper's contribution, so we spent the time there instead. Fig. 10's N = 2^6 row is therefore not reproduced.
+- **`k = 6`** (N = 2^24) is supported by the code but not run, since the ring alone needs about 8.6 GB of RAM.
+- **Constant-time / side-channel hardened code.** This is a research prototype (see [security notes](#security-notes-and-limitations)).
+
+Effect on the evaluation: we can compare sizes for N = 2^12 and 2^18 only, and the security of the derived proof parameters is not estimated (see [deviations](#deviations-from-the-paper)).
+
+## Requirements
+
+**Software**
+
+| | Version used | Notes |
+|---|---|---|
+| Python | 3.12.5 | 3.11 or newer is required (`pyproject.toml`) |
+| numpy | 2.5.4 | pinned in `requirements.txt`; any numpy ≥ 1.26 should work |
+| pytest | 9.1.1 | only needed for the tests |
+| OS | Windows 11 Home (build 26200) | nothing platform-specific; the proof layer was also tested on Linux with Python 3.13 |
+
+Everything else (`hashlib` for SHAKE-256, `secrets`, `argparse`) is in the Python standard library. No GPU, network access, external service or dataset is needed.
+
+**Hardware.** The results below were measured on an Intel Core i7-11800H laptop (8 cores / 16 threads, 2.3 GHz base) with 64 GB RAM. The code is single-threaded. The tests and the demo need well under 1 GB of RAM; `bench/size.py` peaks at about 650 MB (the k = 4 ring has 262,144 keys).
+
+## Installation
+
+From the repository root:
+
+```bash
+python -m venv .venv
+```
+
+Activate it (`source .venv/bin/activate` on macOS/Linux, `.venv\Scripts\activate` on Windows), then:
+
+```bash
+pip install -r requirements.txt
+pip install -e .
+```
+
+`pip install -e .` installs the `bloom` package from `src/` so that the tests, `demo.py` and the `bench/` scripts can `import bloom`. To check the install:
+
+```bash
+python -c "import bloom, numpy; print('ok', numpy.__version__)"
+```
+
+## Configuration
+
+There are no configuration files, secrets or environment variables. Everything is set in code or on the command line:
+
+- **Paper parameters** (Fig. 10 and Fig. 4: `d`, `p`, `q`, `n`, `m`, base, `ℓ`, `k`, the challenge space) are in `src/bloom/params.py`.
+- **Derived proof parameters** the paper does not give (commitment sizes, Gaussian widths, bounds) are in `src/bloom/oom_params.py`. It has two presets: `paper_scale(k, mode)` (Fig. 10 keys, `m = 12`) and `toy(k, mode)` (tiny, **insecure** keys with `m = 2`, used by the test suite so it runs fast).
+- **Rejection sampling mode** is `rej1` (standard) or `bimodal`, chosen per run.
+- **Randomness.** Real signing uses the OS CSPRNG (`secrets`). The demo, tests and benchmarks pass a seeded `random.Random` so their output is reproducible; use `--seed` to change it.
+
+## Running the demo
+
+```bash
+python demo.py                  # Fig. 10 parameters, 4096-key ring (k = 2), about 5 s
+python demo.py --mode bimodal   # bimodal rejection sampling instead of Rej1
+python demo.py --toy            # insecure toy keys, faster
+```
+
+Other options: `--signer <i>` (signer's position in the ring), `--k <even k ≥ 2>`, `--seed <n>`; `python demo.py --help` lists them. Bad values (an odd `k`, a signer outside the ring) are rejected with a usage message.
+
+The demo shows (1) a valid signature accepted, (2) the same signature rejected after one public key in the ring is changed, and after the message is changed, with the verifier's reason, and (3) the signer's index traced through the tensor decomposition and each recursion level. Expected output (abridged, `python demo.py` with the default seed; timings vary by machine):
+
+```
+parameters : Fig. 10 ring signature, k = 2, rejection = rej1
+generated  : 4096 key pairs in 0.54 s; signer is ring member 1459
+...
+1. Sign and verify
+sign       : 0.27 s, 1 attempt(s) (expected about 4.1; restarts: JL 0, z1 0, z2 0)
+size       : 21935 bytes as encoded by serialize.py (measured, not the Fig. 10 estimate)
+verify     : 0.17 s  ->  ACCEPT
+from bytes : decode(encode(sig)) verifies too  ->  ACCEPT
+...
+2. Same signature, modified public statement
+change     : coefficient 0 of public key #2824 (not the signer's), 55711 -> 55712
+verify     : REJECT
+    reason: Fiat-Shamir check: the challenge c does not match this statement and transcript ...
+also       : original ring, message with one extra '!'  ->  REJECT
+...
+3. Tensor decomposition through the recursion (prover's view)
+index 1459 = digits (2 6 51) in radix (8, 8, 64)
+level 1 (Fig. 9): T_0 is 64 x 4096  ->  T_1 is 64 x 512
+  check: <v_1, w_1,i> == <phi_i, A s>  (= <phi_i, T e_i>) for all 8 i: True
+level 2 (Fig. 8): T_1 is 64 x 512  ->  T_2 is 64 x 64
+  check: <v_2, w_2,i> == <phi_1,i, w_1> for all 8 i: True
+...
+Result: all three demo checks behaved as expected
+```
+
+The demo exits with status 0 when all three checks behave as expected.
+
+## Running the tests
+
+```bash
+pytest                    # 208 tests, about 1 minute on the machine above
+pytest -m "not slow"      # skips the statistical and full-size tests
+pytest tests/test_statement_binding.py -v   # one file, verbose
+```
+
+Expected result: `208 passed`.
+
+### What the tests check
+
+- **Foundation:** ring arithmetic against a naive reference, `σ` and Lemma 2.2, samplers (moments, ranges, acceptance rate ≈ 1/M), transcript separation, parameter validation
+- **Recursion:** the tensor decomposition, the fold identity, and the Lemma 4.1 linking checks (including that a sign flip is harmless only for even `k`, Lemma C.1)
+- **Base case:** honest proofs accepted; for each condition of `R_k`, a prover with a witness that breaks it is rejected; the relation encoding agrees with an independent opening checker; any tampered proof field is rejected
+- **Ring signature:** sign/verify for any ring member, bad inputs rejected without crashing, encoding round-trips; the same signature fails after changing a key, the ring order, the message or the public parameters (`test_statement_binding.py`)
+- **Demo:** runs end to end and reports success; bad command-line arguments give a usage error, not a traceback
+
+These are functional tests. They show the code follows the paper's algorithms and catches the cheating cases we wrote; they are not a security proof. Security rests on MSIS, MLWE and the paper's Extended-MLWE assumption.
+
+## Reproducing the results
+
+```bash
+python bench/size.py           # sizes vs Fig. 10, k = 2 and 4 (about 50 s, about 650 MB RAM)
+python bench/timing.py         # sign/verify times and attempts, Rej1 vs bimodal (about 45 s)
+python bench/naive_verifier.py # opening-only checkers vs Pi_k on cheating witnesses (about 45 s)
+```
+
+Each script prints a summary and writes CSV files to `bench/results/` (overwriting the committed ones):
+
+| Script | Output files |
+|---|---|
+| `size.py` | `size.csv` (measured vs estimated size per k and mode), `size_breakdown.csv` (bytes per signature component) |
+| `timing.py` | `timing.csv` (one row per signature), `timing_summary.csv` (means, attempts, restarts) |
+| `naive_verifier.py` | `naive_verifier.csv` (accept counts and time per check for each verifier and cheating case) |
+
+All three use fixed seeds, so the sizes and accept counts come out the same on every run; timings depend on the machine. `--help` on each script lists its options. The committed CSVs are the ones the numbers below come from.
+
+## Results
+
+Measured on the machine in [requirements](#requirements). "Measured" is `len(serialize.encode(signature))`, the mean over 3 signatures; Fig. 10 numbers are the paper's estimates.
+
+| N | k | Fig. 10 estimate | Measured (Rej1) | Measured (bimodal) |
+|---|---|---|---|---|
+| 2^6  | 0 | 13.1 KB | not implemented | not implemented |
+| 2^12 | 2 | 14.1 KB | 22.0 KB | 19.5 KB |
+| 2^18 | 4 | 15.1 KB | 23.2 KB | 20.4 KB |
+| 2^24 | 6 | 16.2 KB | not run | not run |
+
+- Keys: 128 B public, 96 B secret (App. C.2 says the same).
+- Size growth from N = 2^12 to 2^18 (64× more keys): +1.2 KB (Rej1) / +0.9 KB (bimodal), against +1.0 KB in Fig. 10, so the logarithmic growth matches. The fixed gap of about 5–8 KB comes mostly from not applying LNP22 Sec. 6.1 compression (every mod-q value, including `t_A` and the garbage commitments, is sent at 32 bits) and from the simplified JL step (see [deviations](#deviations-from-the-paper)); `size_breakdown.csv` shows where the bytes go.
+- Bimodal sampling makes signatures about 2.5–2.8 KB (11–12%) smaller than Rej1 at the same ring size.
+- N = 4096, 20 signatures per mode (`timing_summary.csv`): sign 1.23 s mean / 0.95 s median (Rej1) and 0.98 s / 0.72 s (bimodal); verify 0.46 s / 0.33 s; 3.15 / 3.55 attempts per signature on average, below the expected bound of about 4.1. The machine was not idle (other applications at roughly 50% CPU), and repeated runs varied by up to 2×: an earlier run gave sign 1.00 / 0.51 s and verify 0.33 / 0.18 s, and the single demo run above signed in 0.27 s. Attempt counts and sizes are seeded and do not change between runs.
+- Gaussian width of the masks: `std1` = 155,495 (Rej1) vs 4,665 (bimodal), about 33× narrower, which is where the size saving comes from.
+- `bench/naive_verifier.py`, 5 kinds of cheating witness × 20 trials: a checker that only opens the commitments accepts all 100; `Π_k` accepts 0, and still accepts all 20 honest proofs. A check with `Π_k` takes about 40–110 ms.
+- Challenge space (Sec. 2.5): 99.15% of 2000 random candidates pass the η = 140 check (the paper says at least 99%).
 
 ## Repo layout
 
@@ -53,70 +200,10 @@ src/bloom/
 tests/            pytest suite, one file per module plus statement-binding and demo tests
 bench/            size.py, timing.py, naive_verifier.py; results/ holds their CSV output
 demo.py           presentation demo
-docs/             notes and plans
+docs/             the original implementation plan (historical)
 ```
 
-## Setup
-
-Python 3.11 or newer. Nothing platform-specific.
-
-```bash
-python -m venv .venv
-```
-
-Activate it (`source .venv/bin/activate` on macOS/Linux, `.venv\Scripts\activate` on Windows), then:
-
-```bash
-pip install -r requirements.txt
-pip install -e .
-```
-
-The foundation layer was developed on Windows 11 (Python 3.12.5); the proof layer was tested on Linux (Python 3.13, numpy 2.5).
-
-## Running it
-
-```bash
-pytest                    # 204 tests, about 20 s
-pytest -m "not slow"      # skips the statistical and full-size tests
-python demo.py            # Fig. 10 parameters, 4096-key ring, about 2 s
-```
-
-`demo.py` shows (1) a valid signature accepted, (2) the same signature rejected after one public key in the ring is changed, with the verifier's reason, and (3) the signer's index traced through the tensor decomposition and each recursion level. Options: `--mode bimodal`, `--signer <i>`, `--seed <n>`, `--toy` (small insecure keys, faster).
-
-### What the tests check
-
-- **Foundation:** ring arithmetic against a naive reference, `σ` and Lemma 2.2, samplers (moments, ranges, acceptance rate ≈ 1/M), transcript separation, parameter validation
-- **Recursion:** the tensor decomposition, the fold identity, and the Lemma 4.1 linking checks (including that a sign flip is harmless only for even `k`, Lemma C.1)
-- **Base case:** honest proofs accepted; for each condition of `R_k`, a prover with a witness that breaks it is rejected; the relation encoding agrees with an independent opening checker; any tampered proof field is rejected
-- **Ring signature:** sign/verify for any ring member, bad inputs rejected without crashing, encoding round-trips; the same signature fails after changing a key, the ring order, the message or the public parameters (`test_statement_binding.py`)
-
-These are functional tests. They show the code follows the paper's algorithms and catches the cheating cases we wrote; they are not a security proof. Security rests on MSIS, MLWE and the paper's Extended-MLWE assumption.
-
-## Results
-
-Measured on a 4-core Linux machine. "Measured" is `len(serialize.encode(signature))`; Fig. 10 numbers are the paper's estimates.
-
-| N | k | Fig. 10 estimate | Measured (Rej1) | Measured (bimodal) |
-|---|---|---|---|---|
-| 2^6  | 0 | 13.1 KB | not implemented | not implemented |
-| 2^12 | 2 | 14.1 KB | 22.0 KB | 19.5 KB |
-| 2^18 | 4 | 15.1 KB | 23.2 KB | 20.4 KB |
-| 2^24 | 6 | 16.2 KB | not run | not run |
-
-- Keys: 128 B public, 96 B secret (App. C.2 says the same).
-- N = 4096, 20 signatures per mode: sign 0.37 s (Rej1) / 0.40 s (bimodal), verify 0.15 s, 3.2 / 3.6 attempts per signature on average.
-- `bench/naive_verifier.py`, 100 cheating witnesses: a check that only opens the commitments accepts all 100; `Π_k` accepts 0.
-- Challenge space (Sec. 2.5): 99.15% of 2000 random candidates pass the η = 140 check (the paper says at least 99%).
-
-## Reproducing the results
-
-```bash
-python bench/size.py           # sizes vs Fig. 10, k = 2 and 4 (about 40 s, about 650 MB RAM)
-python bench/timing.py         # sign/verify times and attempts, Rej1 vs bimodal (about 25 s)
-python bench/naive_verifier.py # opening-only checkers vs Pi_k on cheating witnesses (about 20 s)
-```
-
-Each writes CSV files to `bench/results/` (overwriting the committed ones). `--help` lists the options.
+Data flow for one signature: `ringsig.sign` builds the statement (parameters, `A`, the ring, the message) → `oom.prove` commits to the witness with `abdlop`, then for each level squeezes challenges from `fiat_shamir` and folds the ring with `fold` / `recursion` → `base_case.prove` proves the remaining relation `R_k` → `serialize.encode` turns the proof into bytes. `ringsig.verify` replays the same transcript and checks each step.
 
 ## Deviations from the paper
 
@@ -131,9 +218,17 @@ Each writes CSV files to `bench/results/` (overwriting the committed ones). `--h
 - **Fiat-Shamir.** SHAKE-256 with length-prefixed, type-tagged framing. The statement (parameters, commitment-key seed, `A`, the full ordered ring, the message) is absorbed first. Any rejection restarts the whole signature with fresh randomness.
 - **Public matrices** are expanded from a seed with SHAKE-256. **Secret randomness** comes from the OS CSPRNG (`secrets`); seeded generators are only used in tests and benchmarks.
 
+## Security notes and limitations
+
+- **Primitives.** Hashing and matrix expansion use SHAKE-256 from Python's `hashlib`; secret randomness comes from `secrets`. We did not write our own hash or RNG. The lattice arithmetic, samplers and proof system are our own code, since no maintained Python library implements BLOOM or LNP22.
+- **Input validation.** `ringsig.verify` returns a reject with a reason (it does not raise) on malformed signatures, wrong-length rings, out-of-range keys or tampered fields; the tests cover these cases. `demo.py` rejects bad command-line arguments with a usage message.
+- **Not constant-time.** Sampling, rejection and arithmetic branch on secret values, so the code is not safe against timing or other side-channel attacks. It is a research prototype and should not protect real keys.
+- **No concrete security level** for the derived proof parameters (see deviations). The paper's own parameters are used unchanged.
+- **No secrets in the repo.** There are no passwords, API keys or personal data. Keys created by the demo, tests and benchmarks are generated at run time from fixed seeds and never written to disk.
+
 ## Third-party code, libraries and AI use
 
-Libraries: **numpy** (arrays, convolution, int64 arithmetic with 16-bit limb splitting so products stay exact for q < 2^32), **pytest**, and the Python standard library (`hashlib` for SHAKE-256, `secrets`).
+Libraries: **numpy** (arrays, convolution, int64 arithmetic with 16-bit limb splitting so products stay exact for q < 2^32), **pytest**, and the Python standard library (`hashlib` for SHAKE-256, `secrets`). We chose Python with numpy over C/C++ so every team member could read and explain all of the code, and because with `d = 64` it is fast enough to sign with N = 2^18. We did not use LaZer (IBM's LNP22 library): its proof system has standard rejection sampling built in, so testing bimodal sampling would have meant changing its C internals.
 
 No code is copied from other repositories. The TU Graz "lattice-zk" notebook (F. Lugstein, 2023, https://extgit.iaik.tugraz.at/public-shared/lattice-zk) was read as a reference for how LNP22's sub-protocols fit together. It has no licence, so nothing was copied; `base_case.py` is our own non-interactive implementation for `q = q1·q2`. The paper's authors released no code.
 
@@ -141,6 +236,8 @@ AI assistance:
 
 - The foundation layer (`params.py`, `ring.py`, `sampling.py`, `transcript.py` and their tests) was drafted with AI assistance, then reviewed and tested by the team.
 - Everything added after it was generated with Claude (Anthropic) from an implementation design the team agreed on: the remaining modules in `src/bloom/`, the new tests, `demo.py` and `bench/`. This includes the internal rewrite of `ring.py` (same API, int64 storage) and the array samplers added to `sampling.py`. The team reviews this code and is responsible for it.
+
+The team's own work: the implementation design (module structure, how each step of Figs. 8 and 9 and App. C maps to code), resolving the gaps and inconsistencies in the paper listed under [deviations](#deviations-from-the-paper), deciding what the tests must show (honest acceptance, one negative test per condition of `R_k`, statement binding), the evaluation design and benchmarks, and reviewing and testing all generated code. Bugs we found and fixed this way include a Fiat-Shamir transcript that skipped the ring and the message, so modified statements were accepted (now covered by `tests/test_statement_binding.py`), and, after teaching-team feedback, an opening-based check of the base case, which needs the witness (so it reveals the signer) and on its own accepts cheating witnesses. It was replaced by the zero-knowledge `Π_k` and is kept only as a debugging baseline (`bench/naive_verifier.py`).
 
 ## Team
 
@@ -153,10 +250,13 @@ AI assistance:
 
 Branch and commit rules are in [CONTRIBUTING.md](CONTRIBUTING.md). Everyone is expected to understand the whole codebase, since the Q&A can ask any of us about any part.
 
-## Key dates
+## Packaging the code for submission
 
-- **Presentation + live demo:** Thursday 5 Nov 2026
-- **Report and code due:** Friday 6 Nov 2026, 23:55
+The code zip should hold only tracked files (no `.venv/`, caches, report or slides). From the repository root:
+
+```bash
+git archive --format=zip -o FIT5163-A2-35896493-36404179-36858579-33114579-Code.zip HEAD
+```
 
 ## Reference
 

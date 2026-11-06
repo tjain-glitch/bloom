@@ -11,8 +11,8 @@ Notation (the paper uses a fraktur d for the second one, which is easy to misrea
 
 So a ring has N = d * base^k members.
 
-Gaussian widths for the proofs (s1, s2) aren't given explicitly in the paper. They depend on
-the proof layer, so they'll be added once that layer exists.
+Gaussian widths for the proofs (s1, s2) aren't given explicitly in the paper, so we work
+them out in oom_params.py instead.
 """
 
 from __future__ import annotations

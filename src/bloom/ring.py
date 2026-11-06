@@ -32,9 +32,7 @@ MAX_Q = 1 << 32
 _MAX_TERMS = 1 << 14
 
 
-# =====================================================================================
-# Array-level helpers (no Poly objects). All inputs are int64 arrays reduced mod q.
-# =====================================================================================
+# --- Array-level helpers (no Poly objects). All inputs are int64 arrays reduced mod q. ---
 
 
 def negacyclic_mul(a: np.ndarray, b: np.ndarray, q: int | None = None) -> np.ndarray:
@@ -192,9 +190,7 @@ def norm2_sq(a: np.ndarray, q: int) -> int:
     return int(np.dot(c, c)) if c.size else 0
 
 
-# =====================================================================================
-# Object API: Ring, Poly, PolyVec, PolyMat
-# =====================================================================================
+# --- Object API: Ring, Poly, PolyVec, PolyMat ---
 
 
 class Ring:

@@ -1,4 +1,4 @@
-"""Derived proof parameters. These are FUNCTIONAL checks; no security level is claimed."""
+"""Derived proof parameters. These are only functional checks, we don't claim any security level."""
 
 import math
 

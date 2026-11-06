@@ -1,7 +1,7 @@
 """Proof-system parameters for the one-out-of-many proof (Section 4, App. C, Lemma 2.8).
 
 params.py holds what the paper fixes for the ring signature (Fig. 10: d, p, q, n, m, base,
-ell, k and the challenge space of Fig. 4). The paper does NOT give the remaining knobs a
+ell, k and the challenge space of Fig. 4). The paper doesn't give the remaining knobs a
 working prover needs, so this module derives them and says where each formula comes from:
 
     n_com      rows of A1, A2 in the ABDLOP commitment (Section 2.6)
@@ -10,7 +10,7 @@ working prover needs, so this module derives them and says where each formula co
                lift has soundness error q1^-lam, so lam = ceil(128 / log2 q1) = 9
     gamma_i    rejection-sampling slack: s_i = gamma_i * T_i (Lemma 2.8)
 
-IMPORTANT (Jie's email, point 4): n_com and m2 are FUNCTIONAL choices. They are sized like
+Note (Jie's email, point 4): n_com and m2 are only functional choices. They are sized like
 the LNP22/Graz examples so that the commitment is plausibly binding and hiding, but we have
 not run a lattice estimator on them, so no concrete security level is claimed. The values
 the paper does fix (d, q, p, m, n, kappa, eta) are used unchanged.
@@ -18,7 +18,7 @@ the paper does fix (d, q, p, m, n, kappa, eta) are used unchanged.
 Two presets:
   paper_scale(k)  Fig. 10 ring-signature parameters (m = 12, N = 64 * 8^k)
   toy(k)          tiny m and commitment sizes so the test-suite runs in seconds. Toy keys are
-                  NOT secure (m = 2); toy parameters exist only to exercise the code paths.
+                  not secure (m = 2); toy parameters exist only to exercise the code paths.
 """
 
 from __future__ import annotations

@@ -3,7 +3,7 @@
 Three kinds of test, kept apart on purpose (Jie's email, point 3):
 
   * functional: an honest prover's proof is accepted;
-  * negative:   a prover whose witness breaks ONE row of R_k is caught, and the debug
+  * negative:   a prover whose witness breaks one row of R_k is caught, and the debug
                 OpeningChecker names that row. These show the checks are wired up; they are
                 not a soundness proof (that is LNP22's theorem plus MSIS);
   * sanity checks on zero-knowledge: e.g. after rejection sampling z1 is not correlated
@@ -25,9 +25,7 @@ from bloom.ring import reduce
 from bloom.sampling import sign_array
 
 
-# ---------------------------------------------------------------------------------------
-# helpers
-# ---------------------------------------------------------------------------------------
+# --- helpers ---
 
 
 def reduced(inst, sign=1, seed=0):
@@ -83,9 +81,7 @@ def failing_rows_by_checker(inst, st, bw):
     return {f[:5] for f in failed if f.startswith("row")}
 
 
-# ---------------------------------------------------------------------------------------
-# mutations: each breaks one condition of R_k (others may break as a consequence)
-# ---------------------------------------------------------------------------------------
+# --- mutations: each breaks one condition of R_k (others may break as a consequence) ---
 
 
 def _s1(bw):
@@ -132,7 +128,7 @@ def bad_w_first(pp, bw):
 
 
 def bad_other_key(pp, bw):
-    """A forger: a perfectly formed key s' that is NOT the key at the claimed ring position."""
+    """A forger: a perfectly formed key s' that isn't the key at the claimed ring position."""
     s1 = _s1(bw)
     s1[: pp.ps.m] = sign_array((pp.ps.m, pp.d), random.Random(404))
     return replace(bw, s1=s1)
@@ -149,9 +145,7 @@ MUTATIONS = [
 ]
 
 
-# ---------------------------------------------------------------------------------------
-# functional
-# ---------------------------------------------------------------------------------------
+# --- functional ---
 
 
 @pytest.mark.parametrize("fixture", ["toy_rej1", "toy_bimodal"])
@@ -169,9 +163,7 @@ def test_relation_count(toy_rej1):
     assert rk_relations(pp, Layout(pp), st).count == pp.num_zq_relations - JL_ROWS
 
 
-# ---------------------------------------------------------------------------------------
-# negative: one broken row at a time
-# ---------------------------------------------------------------------------------------
+# --- negative: one broken row at a time ---
 
 
 @pytest.mark.parametrize("mutate, row", MUTATIONS, ids=[m.__name__ for m, _ in MUTATIONS])
@@ -247,9 +239,7 @@ def _bump(a, where=1):
     return a
 
 
-# ---------------------------------------------------------------------------------------
-# sign invariance (Lemma C.1): why the bimodal trick on s1 is free for even k
-# ---------------------------------------------------------------------------------------
+# --- sign invariance (Lemma C.1): why the bimodal trick on s1 is free for even k ---
 
 
 def test_flipped_witness_satisfies_rk_for_even_k(toy_rej1):
@@ -257,13 +247,11 @@ def test_flipped_witness_satisfies_rk_for_even_k(toy_rej1):
     assert OpeningChecker(toy_rej1.pp, toy_rej1.ck).check(st, bw).ok
 
 
-# (For odd k the flipped witness does NOT satisfy R_k; params.py refuses odd k, so that case
+# (For odd k the flipped witness doesn't satisfy R_k; params.py refuses odd k, so that case
 #  is shown with the bare recursion functions in test_recursion.py.)
 
 
-# ---------------------------------------------------------------------------------------
-# zero-knowledge sanity checks (evidence only)
-# ---------------------------------------------------------------------------------------
+# --- zero-knowledge sanity checks (evidence only) ---
 
 
 @pytest.mark.parametrize("fixture", ["toy_rej1", "toy_bimodal"])

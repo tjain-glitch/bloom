@@ -2,7 +2,7 @@
 
     Setup   public seed -> key matrix A in R_p^{n x m} and the ABDLOP commitment key
     KeyGen  sk = s <- {-1,1}^{md},  pk = A s mod p                       (128 B / 96 B, App. C.2)
-    Sign    non-interactive proof that you know s with A s = pk_i for SOME i in the ring,
+    Sign    non-interactive proof that you know s with A s = pk_i for some i in the ring,
             with the message mu absorbed into the Fiat-Shamir transcript
     Verify  re-run the verifier of the proof against the ring and the message
 

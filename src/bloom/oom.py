@@ -13,7 +13,7 @@ Proof flow (prover and verifier walk through the same transcript):
     base case  Pi_k proves R_k in zero knowledge                                 base_case.py
 
 reduce_prove / reduce_verify are the recursion; prove / verify add the base case and the
-rejection-sampling restart loop. Every restart throws away ALL randomness (s2, masks, the
+rejection-sampling restart loop. Every restart throws away all the randomness (s2, masks, the
 bimodal sign b) and starts again from the statement, so an output proof never depends on a
 rejected attempt (Fiat-Shamir with aborts).
 
@@ -91,12 +91,10 @@ class ProveTrace:
     attempts: int = 0
     stats: AttemptStats = field(default_factory=AttemptStats)
     seconds: float = 0.0
-    sign: int = 1                    # bimodal sign b of the accepted attempt (SECRET; demo only)
+    sign: int = 1                    # bimodal sign b of the accepted attempt (secret, only kept for the demo)
 
 
-# =====================================================================================
-# Recursion (Figs. 9 and 8)
-# =====================================================================================
+# --- Recursion (Figs. 9 and 8) ---
 
 
 def _base_statement(pp: ProofParams, stmt: Statement, tr: OomTranscript, tA: np.ndarray,
@@ -169,9 +167,7 @@ def _ring(pp: ProofParams) -> Ring:
     return Ring(pp.d, pp.q)
 
 
-# =====================================================================================
-# Full proof with restarts
-# =====================================================================================
+# --- Full proof with restarts ---
 
 
 def prove(pp: ProofParams, ck: abdlop.CommitmentKey, stmt: Statement, wit: Witness,
