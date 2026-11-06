@@ -1,4 +1,4 @@
-"""Byte encoding of signatures (used to MEASURE sizes; Fig. 10 numbers are estimates)."""
+"""Byte encoding of signatures (used to measure sizes; Fig. 10 numbers are estimates)."""
 
 import random
 

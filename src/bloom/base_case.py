@@ -2,7 +2,7 @@
 
 This is the part Jie's email is about. After k folds (Figs. 9 and 8) the prover has committed
 to s1 = (s, u_1, ..., u_k, v_{k+1}) in the Ajtai part and to w_1, ..., w_k in the BDLOP part.
-Pi_k must convince the verifier that these satisfy every condition of R_k WITHOUT revealing
+Pi_k must convince the verifier that these satisfy every condition of R_k without revealing
 them. The paper (p. 19 and App. C.1) says each condition is one of the LNP22 statement types
 of Section 2.7; this file writes them down and implements the LNP22 machinery that proves them.
 
@@ -26,25 +26,24 @@ The protocol, in the order the transcript sees it (made non-interactive with Fia
     b. Z_q -> R_q lift (LNP22): commit to garbage g_1..g_lam with zero constant coefficient,
        get gamma <- H, send h_i = g_i + sum_j gamma_ij F_j. The verifier checks const(h_i) = 0:
        if any F_j had a nonzero constant coefficient this fails except w.p. q1^-lam.
-    c. Collapse the lam R_q relations "g_i + sum_j gamma_ij F_j - h_i = 0" into ONE relation
+    c. Collapse the lam R_q relations "g_i + sum_j gamma_ij F_j - h_i = 0" into one relation
        with random polynomial weights mu <- H.
     d. Prove that one quadratic relation with the commit-and-prove protocol of Fig. 7
        (BLOOM Sec. 3.2 / LNP22 Sec. 4): masks y1, y2, garbage t = b^T s2 + g1, value v,
        challenge c <- H, responses z1 = y1 + c s1, z2 = y2 + c s2 with rejection sampling.
 
-Reference implementation used for cross-checking: the TU Graz "lattice-zk" notebook
-(Lugstein, 2023), functions abdlop_quadratic_poly / abdlop_multiple_quadratic /
-abdlop_single_quadratic / abdlop_toolbox. That code is interactive, SageMath-only, uses a
-prime modulus and carries no licence, so nothing was copied; this file is our own
-implementation of the same LNP22 steps, non-interactive and for q = q1 q2.
+We cross-checked against the TU Graz "lattice-zk" notebook (Lugstein, 2023), in particular
+abdlop_quadratic_poly / abdlop_multiple_quadratic / abdlop_single_quadratic / abdlop_toolbox. That code is interactive, SageMath-only, uses a
+prime modulus and has no licence, so we didn't copy anything from it. This file is our own
+version of the same LNP22 steps, made non-interactive and working with q = q1 q2.
 
-Deliberate simplifications (also in the README):
+Things we simplified on purpose (also listed in the README):
   * The JL step uses standard Rej1 (no sign bit). LNP22 hides R s3 with a committed sign and
     bimodal sampling; Rej1 needs a wider Gaussian for z3 (~100 bytes) but no sign proof.
   * No proof-size optimisations from LNP22 Sec. 6.1 (dropping low bits of t_A, etc.).
 
 The OpeningChecker at the end opens every commitment and checks R_k in the clear. It reveals
-the whole witness, so it is a DEBUGGING ORACLE ONLY (tests, bench/naive_verifier.py); the ring
+the whole witness, so it's only there for debugging (tests, bench/naive_verifier.py). The ring
 signature never uses it.
 """
 
@@ -64,9 +63,7 @@ from .ring import (centered, conj_array, matmul_mod, matvec, polymul, polyvec_do
 from .sampling import gaussian_array, rej1, rej_bimodal, uniform_array
 
 
-# =====================================================================================
-# Result type shared by every verifier in the package
-# =====================================================================================
+# --- Result type shared by every verifier in the package ---
 
 
 @dataclass
@@ -83,9 +80,7 @@ class VerifyResult:
         return cls(False, reason, failed or [reason])
 
 
-# =====================================================================================
-# Variable layout: x = s1 || m, the vector every relation is written in
-# =====================================================================================
+# --- Variable layout: x = s1 || m, the vector every relation is written in ---
 
 
 class Layout:
@@ -114,9 +109,7 @@ class Layout:
         return range(self.m1, self.n)
 
 
-# =====================================================================================
-# Relation algebra: batches of quadratic expressions with automorphisms (eq. 16 / 17)
-# =====================================================================================
+# --- Relation algebra: batches of quadratic expressions with automorphisms (eq. 16 / 17) ---
 
 
 class Relations:
@@ -258,9 +251,7 @@ def _rot_apply_batch(rmu: np.ndarray, arr: np.ndarray, q: int) -> np.ndarray:
     return (r_lo + (r_hi << 16) % q) % q
 
 
-# =====================================================================================
-# Small polynomial constants
-# =====================================================================================
+# --- Small polynomial constants ---
 
 
 def _scalar(value: int, d: int, q: int) -> np.ndarray:
@@ -280,9 +271,7 @@ def _monomial(e: int, d: int, q: int) -> np.ndarray:
     return out
 
 
-# =====================================================================================
-# R_k written as relations (rows 1-6 of the table in the module docstring)
-# =====================================================================================
+# --- R_k written as relations (rows 1-6 of the table in the module docstring) ---
 
 
 @dataclass
@@ -395,9 +384,7 @@ def jl_vector(pp: ProofParams, s1: np.ndarray) -> np.ndarray:
     return np.concatenate([x.ravel(), s1[m:].ravel()]).astype(np.int64)
 
 
-# =====================================================================================
-# The proof object
-# =====================================================================================
+# --- The proof object ---
 
 
 @dataclass
@@ -443,14 +430,14 @@ def prove(pp: ProofParams, ck: abdlop.CommitmentKey, tr: OomTranscript, st: Base
           check_witness: bool = True) -> BaseCaseProof | None:
     """One attempt at Pi_k. Returns None if a rejection step fires (caller restarts everything).
 
-    check_witness=False lets tests run a CHEATING prover on a bad witness, to show that the
+    check_witness=False lets tests run a cheating prover on a bad witness, to show that the
     verifier catches it; an honest caller leaves it on so bugs surface immediately.
     """
     d, q = pp.d, pp.q
     lay = Layout(pp)
     stats = stats or AttemptStats()
 
-    # (a) JL approximate shortness. Masks y3 and garbage g are committed BEFORE R and gamma.
+    # (a) JL approximate shortness. Masks y3 and garbage g are committed before R and gamma.
     y3 = gaussian_array((pp.n_y3, d), pp.std3, rng)
     g = uniform_array((pp.lam, d), q, rng)
     g[:, 0] = 0
@@ -591,9 +578,7 @@ def verify(pp: ProofParams, ck: abdlop.CommitmentKey, tr: OomTranscript, st: Bas
     return VerifyResult(True)
 
 
-# =====================================================================================
-# OpeningChecker: DEBUGGING ORACLE ONLY (reveals the witness; not zero-knowledge)
-# =====================================================================================
+# --- OpeningChecker: debugging only (it reveals the witness, so it's not zero-knowledge) ---
 
 
 class OpeningChecker:

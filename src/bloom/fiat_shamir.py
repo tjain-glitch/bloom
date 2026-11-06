@@ -1,20 +1,21 @@
 """Protocol-specific Fiat-Shamir for the BLOOM ring signature (Section 4, App. C.2).
 
-transcript.py is the generic hash state. This module fixes WHAT goes into it and in which
+transcript.py is the generic hash state. This module fixes what goes into it and in which
 order, because that order is the security argument for statement binding: every challenge
 must depend on everything the verifier has seen so far.
 
 Order (prover and verifier must call these in exactly this order):
 
     1. absorb_statement:  protocol id, all parameters, commitment-key seed, key matrix A,
-                          the FULL ordered ring of public keys T, the message mu
+                          the full ordered ring of public keys T, the message mu
     2. absorb t_A                                        (Fig. 9, first message)
     3. for each level j = 0..k-1:  phis_j <- H;  absorb t_{j+1}   (Figs. 9 and 8)
     4. base case (base_case.py):  absorb t_y3, t_g;  R <- H;  absorb z3;  gamma <- H;
                                   absorb h;  mu_rq <- H;  absorb t, w, v;  c <- H
 
-A team-reported bug from the consultation minutes is the reason step 1 is so explicit: a
-transcript that skipped the ring and the message accepted modified statements every time.
+Step 1 is spelled out this carefully because of a bug we found earlier (it's in the
+consultation minutes): a transcript that skipped the ring and the message accepted modified
+statements every time.
 tests/test_statement_binding.py checks that each item really is bound.
 """
 
@@ -42,7 +43,7 @@ def _array_bytes(arr: np.ndarray) -> bytes:
 
 
 class OomTranscript:
-    """Thin wrapper that names every absorb/squeeze of the protocol."""
+    """Small wrapper so every absorb/squeeze in the protocol has a name."""
 
     def __init__(self, pp: ProofParams) -> None:
         self.pp = pp

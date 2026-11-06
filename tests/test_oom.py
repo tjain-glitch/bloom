@@ -99,7 +99,7 @@ def test_malformed_proof_rejected_not_crashing(toy_rej1, proved):
 
 
 def test_modified_statement_rejected(toy_rej1, proved):
-    """Change one coefficient of one ring member (not the signer) and verify the SAME proof."""
+    """Change one coefficient of one ring member (not the signer) and verify the same proof."""
     other = (toy_rej1.index + 7) % toy_rej1.ps.ring_size
     T_p = toy_rej1.T_p.copy()
     T_p[0, other] = (T_p[0, other] + 1) % toy_rej1.ps.p

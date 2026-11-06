@@ -1,7 +1,7 @@
 """ABDLOP commitment (paper Section 2.6, from LNP22).
 
-    t_A = A1 s1 + A2 s2          Ajtai part: commits to the SHORT vector s1 (keys, selectors)
-    t_B = B  s2 + m              BDLOP part: commits to FULL-SIZE polynomials m (one row each)
+    t_A = A1 s1 + A2 s2          Ajtai part: commits to the short vector s1 (keys, selectors)
+    t_B = B  s2 + m              BDLOP part: commits to full-size polynomials m (one row each)
 
 s2 is short random ternary noise. Under Module-LWE, (A2; B) s2 looks uniform, so t_A and t_B
 hide s1 and m (Lemma 2.11). Under Module-SIS you cannot open t_A to two different short s1

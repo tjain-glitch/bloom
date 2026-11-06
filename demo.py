@@ -6,14 +6,14 @@
 
 It shows the three things the teaching team asked for (consultation, 29 Oct):
 
-    1. a valid signature is ACCEPTED;
-    2. the SAME signature is REJECTED after one public key in the ring is changed, with the
+    1. a valid signature is accepted;
+    2. the same signature is rejected after one public key in the ring is changed, with the
        verifier's reason;
     3. the signer's index traced through the tensor decomposition and the recursion
        (Figs. 9 and 8), level by level.
 
 The secret-witness parts of step 3 (the selectors v_j and the w blocks) are printed from the
-PROVER's side for teaching purposes; a verifier never sees them.
+prover's side for teaching purposes; a verifier never sees them.
 """
 
 from __future__ import annotations
@@ -48,10 +48,17 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--seed", type=int, default=2026, help="seed for a reproducible run")
     args = ap.parse_args(argv)
 
+    # Check the command line before doing any work, so bad input gives a usage message
+    # instead of a traceback. k = 0 (no recursion) is not implemented, see the README.
+    if args.k < 2 or args.k % 2:
+        ap.error(f"--k must be an even number >= 2, got {args.k}")
+
     rng = random.Random(args.seed)
     pp = (oom_params.toy if args.toy else oom_params.paper_scale)(args.k, args.mode)
     ps = pp.ps
     N = ps.ring_size
+    if args.signer is not None and not 0 <= args.signer < N:
+        ap.error(f"--signer must be in [0, {N}) for k = {args.k}, got {args.signer}")
 
     banner("Setup")
     print(f"parameters : {'TOY (insecure, m = 2)' if args.toy else 'Fig. 10 ring signature'}, "
@@ -95,7 +102,7 @@ def main(argv: list[str] | None = None) -> int:
           f"{ring[victim][0]} -> {tampered[victim][0]}")
     res2 = ringsig.verify(params, tampered, message, sig)
     print(f"verify     : {verdict(res2)}")
-    # Why: the verifier rebuilds everything from the statement, so the change spreads.
+    # The verifier rebuilds everything from the statement, so one changed key affects every level.
     T_orig = ringsig._ring_matrix(params, ring)
     T_new = ringsig._ring_matrix(params, tampered)
     st_orig = oom.reduce_verify(pp, ringsig._statement(params, T_orig),

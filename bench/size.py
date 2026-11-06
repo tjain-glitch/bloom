@@ -9,7 +9,7 @@ Two kinds of number, kept in separate columns on purpose (Jie's email, point 4):
   * estimate  the paper's Fig. 10 figure (LNP22 Sec. 6.1 counting). We also print our own
               "entropy" estimate, where the z's are counted at log2(sqrt(2 pi e) s) bits per
               coefficient as LNP22 does, instead of the fixed-width packing we transmit.
-              It is an ESTIMATE of what entropy coding would give, not a measured size.
+              It's an estimate of what entropy coding would give, not a measured size.
 
 Only the signer's key is a real key pair; the other N - 1 ring members are uniform vectors
 mod p. That is what a real public key looks like under MLWE, it does not change the proof or

@@ -1,5 +1,7 @@
 # Implementation plan
 
+> **Historical document.** This is the plan we wrote on 18 Oct, before implementation. Some of it changed along the way (for example the module layout, `k = 0` was dropped, and the base case does use the JL approximate-shortness proof). The [README](../README.md) describes what was actually built; this file is kept as part of the project record.
+
 Working doc. It covers how we turn the paper into code, who does what, and what we cut if we run out of time. Edit it as things change.
 
 ## Before anything else: what we're actually up against

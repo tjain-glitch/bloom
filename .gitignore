@@ -71,3 +71,9 @@ desktop.ini
 bench/raw/
 *.log
 *.prof
+
+# --- submission material handed in separately (report, slides, cover sheet, spec) ---
+report/
+*.docx
+FIT5163-*.pdf
+FIT5163-*.zip
